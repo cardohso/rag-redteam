@@ -92,3 +92,11 @@ def test_missing_private_text_is_an_error(source, tmp_path):
 def test_unknown_host_document(source, tmp_path):
     with pytest.raises(PlantError, match="not in corpus"):
         build_copy(source, tmp_path / "out", corpus(passage(doc="tsi-nope")))
+
+
+def test_skip_private_plants_only_passages_with_text(source, tmp_path):
+    private = PlantedPassage(id="PL-002", doc_id="tsi-prm", section="s-PL002", heading="h",
+                             summary="s", private=True)  # fmt: skip
+    out = tmp_path / "out"
+    ids = build_copy(source, out, corpus(passage(), private), skip_private=True)
+    assert ids == ["PL-001"] and len(lines(out / "processed" / "tsi-prm.jsonl")) == 2

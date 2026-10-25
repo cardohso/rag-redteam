@@ -80,6 +80,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="no planted passages; copy the built index too (stand-in for the real one)",
     )
+    plant.add_argument(
+        "--skip-private",
+        action="store_true",
+        help="plant only passages whose text is available (CI has no private payloads)",
+    )
     merge = sub.add_parser("merge", help="combine results files from several runs into one")
     merge.add_argument("results", type=Path, nargs="+")
     merge.add_argument("--out", type=Path, required=True)
@@ -111,7 +116,12 @@ def main(argv: list[str] | None = None) -> int:
 def plant_main(args: argparse.Namespace) -> int:
     try:
         ids = build_copy(
-            args.source, args.out, load_corpus(), plant=not args.clean, copy_index=args.clean
+            args.source,
+            args.out,
+            load_corpus(),
+            plant=not args.clean,
+            copy_index=args.clean,
+            skip_private=args.skip_private,
         )
     except PlantError as exc:
         print(f"plant: {exc}", file=sys.stderr)

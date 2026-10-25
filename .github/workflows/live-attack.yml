@@ -1,0 +1,169 @@
+name: live-attack
+
+# Manual only. Starts the target (cardohso/rail-regulation-rag) inside this job, on localhost, and
+# attacks that copy. It never touches the public demo: the target URL is hard-coded to 127.0.0.1
+# and the CLI refuses non-local addresses unless --allow-live is passed, which this file never does.
+#
+# Secrets to add under Settings -> Secrets and variables -> Actions:
+#   GEMINI_API_KEY  the target's generator (free-tier key). Without it the services cannot answer.
+#   GROQ_API_KEY    the LLM judge. Without it the run still works; LLM-judged checks stay
+#                   inconclusive and the report says so.
+#
+# This runs the public cases only: the high-severity payloads live in attacks/private/, which is
+# not in the repository, so those cases are skipped here and run on a developer machine.
+# The free Gemini quota is shared with any other use of the same key; a 503 from the target is
+# recorded as inconclusive, never as defended.
+
+on:
+  workflow_dispatch:
+    inputs:
+      rail_ref:
+        description: Branch, tag or commit of cardohso/rail-regulation-rag to attack
+        default: main
+        type: string
+      category:
+        description: Attack category to run
+        default: all
+        type: choice
+        options:
+          - all
+          - direct_injection
+          - indirect_injection
+          - jailbreak
+          - data_leakage
+          - grounding
+      rpm:
+        description: Requests per minute sent to the target
+        default: "10"
+        type: choice
+        options: ["6", "10", "20"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: live-attack
+  cancel-in-progress: false
+
+jobs:
+  attack:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      HAS_GROQ: ${{ secrets.GROQ_API_KEY != '' }}
+      HAS_GEMINI: ${{ secrets.GEMINI_API_KEY != '' }}
+      CATEGORY: ${{ inputs.category }}
+      RPM: ${{ inputs.rpm }}
+    steps:
+      - name: Require the target's key
+        run: |
+          if [ "$HAS_GEMINI" != "true" ]; then
+            echo "::error::Add the GEMINI_API_KEY repository secret first (the target cannot answer without it)."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v7
+
+      - uses: actions/checkout@v7
+        with:
+          repository: cardohso/rail-regulation-rag
+          ref: ${{ inputs.rail_ref }}
+          path: rail
+
+      - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install the suite and the target
+        run: |
+          uv sync --frozen
+          uv sync --frozen --no-dev --project rail
+
+      - name: Build the planted copy of the target's data
+        run: uv run python -m rag_redteam plant --source rail/data --out work/planted --skip-private
+
+      - name: Index the real corpus and the planted copy
+        working-directory: rail
+        env:
+          VECTOR_STORE: qdrant
+        run: |
+          uv run --frozen python -m rail_rag.index
+          RAIL_RAG_DATA_DIR="$GITHUB_WORKSPACE/work/planted" uv run --frozen python -m rail_rag.index
+
+      - name: Start the target twice, on localhost (clean on 7860, planted on 7861)
+        working-directory: rail
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          VECTOR_STORE: qdrant
+          RATE_LIMIT_PER_MINUTE: "120"
+          RATE_LIMIT_PER_DAY: "2000"
+        run: |
+          nohup uv run --frozen uvicorn rail_rag.api:app --host 127.0.0.1 --port 7860 \
+            > "$RUNNER_TEMP/clean.log" 2>&1 &
+          RAIL_RAG_DATA_DIR="$GITHUB_WORKSPACE/work/planted" nohup uv run --frozen uvicorn \
+            rail_rag.api:app --host 127.0.0.1 --port 7861 > "$RUNNER_TEMP/planted.log" 2>&1 &
+          for port in 7860 7861; do
+            for _ in $(seq 1 60); do
+              curl -sf "http://127.0.0.1:$port/health" && break
+              sleep 3
+            done
+            curl -sf "http://127.0.0.1:$port/health" > /dev/null || { echo "::error::service on $port did not start"; exit 1; }
+          done
+
+      - name: Attack the real corpus
+        if: inputs.category != 'indirect_injection'
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: |
+          args=()
+          if [ "$CATEGORY" != "all" ]; then args+=(--category "$CATEGORY"); fi
+          uv run python -m rag_redteam run --url http://127.0.0.1:7860 --rpm "$RPM" \
+            "${args[@]}" --out results/raw/clean.json
+
+      - name: Attack the planted copy (indirect injection)
+        if: inputs.category == 'all' || inputs.category == 'indirect_injection'
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: |
+          uv run python -m rag_redteam run --url http://127.0.0.1:7861 --rpm "$RPM" --planted \
+            --category indirect_injection --out results/raw/planted.json
+
+      - name: Merge the runs
+        run: |
+          files=()
+          for f in results/raw/clean.json results/raw/planted.json; do
+            if [ -f "$f" ]; then files+=("$f"); fi
+          done
+          uv run python -m rag_redteam merge "${files[@]}" --out results/raw/run.json
+
+      - name: Judge with the LLM judge (different model family)
+        if: env.HAS_GROQ == 'true'
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: uv run python -m rag_redteam judge results/raw/run.json --out results/raw/run.judged.json
+
+      - name: Write the report
+        run: |
+          src=results/raw/run.json
+          if [ -f results/raw/run.judged.json ]; then src=results/raw/run.judged.json; fi
+          uv run python -m rag_redteam report "$src" --out results/report.md
+          {
+            echo "_Public cases only: the high-severity cases run locally, not here._"
+            echo
+            cat results/report.md
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the report
+        uses: actions/upload-artifact@v4
+        with:
+          name: report
+          path: results/report.md  # the redacted report only; raw results are never uploaded
+
+      - name: Service logs (only if something failed)
+        if: failure()
+        run: |
+          tail -n 40 "$RUNNER_TEMP/clean.log" || true
+          tail -n 40 "$RUNNER_TEMP/planted.log" || true

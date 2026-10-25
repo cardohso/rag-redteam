@@ -35,13 +35,15 @@ def build_copy(
     *,
     plant: bool = True,
     copy_index: bool = False,
+    skip_private: bool = False,
 ) -> list[str]:
     """Copy sources.yaml and processed/ (and the index folder if asked) from `source` to `out`.
-    With `plant`, append every planted passage to its host document. Returns the planted ids."""
+    With `plant`, append every planted passage to its host document; with `skip_private`, only
+    those whose text is available (CI has no private payloads). Returns the planted ids."""
     _check_destination(source, out)
     if plant:
         missing = [p.id for p in corpus.planted.values() if p.text is None]
-        if missing:
+        if missing and not skip_private:
             raise PlantError(f"no text for planted passages {missing} (attacks/private/?)")
     if out.exists():
         shutil.rmtree(out)  # safe: it is empty or carries our marker
@@ -55,6 +57,8 @@ def build_copy(
     planted_ids: list[str] = []
     if plant:
         for passage in corpus.planted.values():
+            if passage.text is None:  # only reachable with skip_private
+                continue
             path = out / "processed" / f"{passage.doc_id}.jsonl"
             if not path.exists():
                 raise PlantError(f"{passage.id}: host document {passage.doc_id!r} not in corpus")

@@ -19,6 +19,7 @@ from rag_redteam.judges.family import SameFamilyError
 from rag_redteam.judges.llm import DEFAULT_JUDGE_MODEL, GroqJudge, JudgeCache
 from rag_redteam.judging import judge_results
 from rag_redteam.profile import DEFAULT_PROFILE, REPO_ROOT, load_profile, read_env_file
+from rag_redteam.report import render, render_comparison
 from rag_redteam.runner import CaseResult, run_suite, select, write_results
 from rag_redteam.schema import Category, Severity
 
@@ -63,6 +64,13 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="let a judge from the generator's model family grade it (recorded in the results)",
     )
+    report = sub.add_parser("report", help="write the Markdown report from a judged results file")
+    report.add_argument("results", type=Path)
+    report.add_argument("--out", type=Path, default=Path("results/report.md"))
+    report.add_argument(
+        "--compare", type=Path, metavar="BEFORE", help="write a before/after comparison instead"
+    )
+    report.add_argument("--label", default="", help="name of the fix, for --compare")
     return ap
 
 
@@ -72,7 +80,25 @@ def _progress(i: int, total: int, r: CaseResult) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    return judge_main(args) if args.command == "judge" else run_main(args)
+    if args.command == "judge":
+        return judge_main(args)
+    if args.command == "report":
+        return report_main(args)
+    return run_main(args)
+
+
+def report_main(args: argparse.Namespace) -> int:
+    doc = json.loads(args.results.read_text(encoding="utf-8"))
+    corpus = load_corpus()
+    if args.compare:
+        before = json.loads(args.compare.read_text(encoding="utf-8"))
+        text = render_comparison(before, doc, corpus, label=args.label)
+    else:
+        text = render(doc, corpus)
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    args.out.write_text(text, encoding="utf-8")
+    print(f"report -> {args.out}", file=sys.stderr)
+    return 0
 
 
 def _groq_key() -> str:

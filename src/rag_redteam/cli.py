@@ -18,9 +18,10 @@ from rag_redteam.corpus import load_corpus
 from rag_redteam.judges.family import SameFamilyError
 from rag_redteam.judges.llm import DEFAULT_JUDGE_MODEL, GroqJudge, JudgeCache
 from rag_redteam.judging import judge_results
+from rag_redteam.plant import PlantError, build_copy
 from rag_redteam.profile import DEFAULT_PROFILE, REPO_ROOT, load_profile, read_env_file
 from rag_redteam.report import render, render_comparison
-from rag_redteam.runner import CaseResult, run_suite, select, write_results
+from rag_redteam.runner import CaseResult, merge_results, run_suite, select, write_results
 from rag_redteam.schema import Category, Severity
 
 LIVE_CASE_CAP = 5  # a smoke test, not a run: the live demo has a daily LLM budget
@@ -71,6 +72,17 @@ def build_parser() -> argparse.ArgumentParser:
         "--compare", type=Path, metavar="BEFORE", help="write a before/after comparison instead"
     )
     report.add_argument("--label", default="", help="name of the fix, for --compare")
+    plant = sub.add_parser("plant", help="copy the target's data folder, with planted passages")
+    plant.add_argument("--source", type=Path, required=True, help="the target's data folder")
+    plant.add_argument("--out", type=Path, required=True)
+    plant.add_argument(
+        "--clean",
+        action="store_true",
+        help="no planted passages; copy the built index too (stand-in for the real one)",
+    )
+    merge = sub.add_parser("merge", help="combine results files from several runs into one")
+    merge.add_argument("results", type=Path, nargs="+")
+    merge.add_argument("--out", type=Path, required=True)
     return ap
 
 
@@ -84,7 +96,32 @@ def main(argv: list[str] | None = None) -> int:
         return judge_main(args)
     if args.command == "report":
         return report_main(args)
+    if args.command == "plant":
+        return plant_main(args)
+    if args.command == "merge":
+        return merge_main(args)
     return run_main(args)
+
+
+def plant_main(args: argparse.Namespace) -> int:
+    try:
+        ids = build_copy(
+            args.source, args.out, load_corpus(), plant=not args.clean, copy_index=args.clean
+        )
+    except PlantError as exc:
+        print(f"plant: {exc}", file=sys.stderr)
+        return 2
+    print(f"{args.out}: copied, {len(ids)} planted passage(s) {ids}", file=sys.stderr)
+    return 0
+
+
+def merge_main(args: argparse.Namespace) -> int:
+    docs = [json.loads(p.read_text(encoding="utf-8")) for p in args.results]
+    merged = merge_results(docs)
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    args.out.write_text(json.dumps(merged, indent=2, ensure_ascii=False), encoding="utf-8")
+    print(f"{len(merged['results'])} results -> {args.out}", file=sys.stderr)
+    return 0
 
 
 def report_main(args: argparse.Namespace) -> int:

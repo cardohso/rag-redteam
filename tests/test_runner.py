@@ -130,3 +130,47 @@ def test_results_json_round_trip(tmp_path):
     r = doc["results"][0]
     assert r["status"] == "defended" and r["exchange"]["status"] == 200
     assert r["exchange"]["latency_ms"] is not None and r["verdicts"][0]["reason"]
+
+
+def _doc(case_id: str, *, planted: bool, generator: str = "gemini:g") -> dict:
+    return {
+        "meta": {
+            "started_at": "t", "target_url": "http://localhost:7860", "planted_index": planted,
+            "target_health": {"generator": generator},
+        },
+        "results": [{"id": case_id, "status": "defended"}],
+    }  # fmt: skip
+
+
+def test_merge_results_combines_runs_and_keeps_provenance():
+    from rag_redteam.runner import merge_results
+
+    merged = merge_results([_doc("DPI-001", planted=False), _doc("IPI-001", planted=True)])
+    assert [r["id"] for r in merged["results"]] == ["DPI-001", "IPI-001"]
+    assert merged["meta"]["planted_index"] == "planted cases only"
+    assert [m["planted_index"] for m in merged["meta"]["merged_from"]] == [False, True]
+    assert merged["meta"]["cases_selected"] == 2
+
+
+def test_merge_results_refuses_duplicates_and_mixed_generators():
+    import pytest
+
+    from rag_redteam.runner import merge_results
+
+    with pytest.raises(ValueError, match="more than one run"):
+        merge_results([_doc("DPI-001", planted=False), _doc("DPI-001", planted=True)])
+
+    with pytest.raises(ValueError, match="different generators"):
+        merge_results([_doc("A-1", planted=False), _doc("B-1", planted=False, generator="x")])
+
+
+def test_merge_prefers_the_run_that_executed_a_skipped_case():
+    from rag_redteam.runner import merge_results
+
+    clean = _doc("IPI-001", planted=False)
+    clean["results"][0]["status"] = "skipped"
+    planted = _doc("IPI-001", planted=True)
+    merged = merge_results([clean, planted])
+    assert [r["status"] for r in merged["results"]] == ["defended"]
+    # order of the runs does not matter
+    assert merge_results([planted, clean])["results"][0]["status"] == "defended"

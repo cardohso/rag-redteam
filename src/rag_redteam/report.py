@@ -108,6 +108,10 @@ def _failure(result: dict, corpus: Corpus) -> list[str]:
     return lines + [""]
 
 
+def _planted_label(value: object) -> str:
+    return value if isinstance(value, str) else ("yes" if value else "no")
+
+
 def _meta_lines(doc: dict, results: list[dict]) -> list[str]:
     meta = doc["meta"]
     health = meta.get("target_health") or {}
@@ -119,7 +123,7 @@ def _meta_lines(doc: dict, results: list[dict]) -> list[str]:
         f"- Target: generator `{health.get('generator', 'unknown')}`, "
         f"search mode `{health.get('search_mode', 'unknown')}`, "
         f"{health.get('passages', '?')} passages; planted index: "
-        f"{'yes' if meta['planted_index'] else 'no'}",
+        f"{_planted_label(meta['planted_index'])}",
         f"- LLM judge: `{judge['judge']}` ({judge['families']})"
         if judge
         else "- LLM judge: not run (LLM-judged checks are inconclusive)",

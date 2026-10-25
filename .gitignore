@@ -9,3 +9,4 @@ __pycache__/
 attacks/private/
 results/raw/
 .cache/
+work/

@@ -105,3 +105,32 @@ def test_read_env_file_reads_only_requested_names(tmp_path):
     env = tmp_path / ".env"
     env.write_text("GEMINI_API_KEY='abc123'\nOTHER=zzz\nGROQ_API_KEY=\n# comment\n")
     assert read_env_file(env, ["GEMINI_API_KEY", "GROQ_API_KEY"]) == {"GEMINI_API_KEY": "abc123"}
+
+
+def test_plant_and_merge_commands(tmp_path, monkeypatch, capsys):
+    src = tmp_path / "data"
+    (src / "processed").mkdir(parents=True)
+    (src / "sources.yaml").write_text("documents: []\n")
+    row = {"doc_id": "tsi-prm", "celex": "c", "section": "s", "heading": "h", "text": "t"}
+    (src / "processed" / "tsi-prm.jsonl").write_text(json.dumps(row) + "\n")
+    from rag_redteam.corpus import Corpus
+    from rag_redteam.schema import PlantedPassage
+
+    planted = PlantedPassage(id="PL-001", doc_id="tsi-prm", section="s-PL001", heading="h",
+                             summary="s", text="planted")  # fmt: skip
+    monkeypatch.setattr(cli, "load_corpus", lambda: Corpus({}, [], {"PL-001": planted}))
+    out = tmp_path / "copy"
+    assert cli.main(["plant", "--source", str(src), "--out", str(out)]) == 0
+    assert (out / "processed" / "tsi-prm.jsonl").read_text().count("\n") == 2
+    assert cli.main(["plant", "--source", str(src), "--out", str(src)]) == 2
+    assert "overlaps" in capsys.readouterr().err
+
+    a, b, merged = tmp_path / "a.json", tmp_path / "b.json", tmp_path / "m.json"
+    for path, case_id in [(a, "DPI-001"), (b, "IPI-001")]:
+        path.write_text(json.dumps({
+            "meta": {"started_at": "t", "target_url": "u", "planted_index": path is b,
+                     "target_health": {"generator": "g"}},
+            "results": [{"id": case_id, "status": "defended"}],
+        }))  # fmt: skip
+    assert cli.main(["merge", str(a), str(b), "--out", str(merged)]) == 0
+    assert len(json.loads(merged.read_text())["results"]) == 2

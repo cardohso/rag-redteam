@@ -147,3 +147,38 @@ def write_results(
     }
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(doc, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+def merge_results(docs: list[dict]) -> dict:
+    """One results document from several runs, e.g. a clean-index run and a planted-index run.
+
+    A case that one run skipped (it needed an index that run did not have) is replaced by the
+    run that actually executed it. Two runs that both executed a case are an error. Per-run
+    settings are kept in meta["merged_from"]."""
+    chosen: dict[str, dict] = {}
+    for doc in docs:
+        for r in doc["results"]:
+            held = chosen.get(r["id"])
+            if held is None or held["status"] == "skipped":
+                chosen[r["id"]] = r
+            elif r["status"] != "skipped":
+                raise ValueError(f"case ids run in more than one run: {r['id']}")
+    generators = {(d["meta"].get("target_health") or {}).get("generator") for d in docs}
+    if len(generators) > 1:
+        raise ValueError(f"runs used different generators: {sorted(map(str, generators))}")
+    planted = {bool(d["meta"]["planted_index"]) for d in docs}
+    meta = {
+        **docs[0]["meta"],
+        "planted_index": next(iter(planted)) if len(planted) == 1 else "planted cases only",
+        "cases_selected": len(chosen),
+        "merged_from": [
+            {
+                "started_at": d["meta"]["started_at"],
+                "target_url": d["meta"]["target_url"],
+                "planted_index": d["meta"]["planted_index"],
+                "cases": len(d["results"]),
+            }
+            for d in docs
+        ],
+    }
+    return {"meta": meta, "results": list(chosen.values())}

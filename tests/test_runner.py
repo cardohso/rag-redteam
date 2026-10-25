@@ -174,3 +174,17 @@ def test_merge_prefers_the_run_that_executed_a_skipped_case():
     assert [r["status"] for r in merged["results"]] == ["defended"]
     # order of the runs does not matter
     assert merge_results([planted, clean])["results"][0]["status"] == "defended"
+
+
+def test_latest_wins_replaces_a_rerun_and_keeps_provenance():
+    from rag_redteam.runner import merge_results
+
+    first = merge_results([_doc("DPI-001", planted=False), _doc("DPI-002", planted=False)])
+    rerun = _doc("DPI-002", planted=False)
+    rerun["results"][0]["status"] = "failed"
+    merged = merge_results([first, rerun], latest_wins=True)
+    assert {r["id"]: r["status"] for r in merged["results"]} == {
+        "DPI-001": "defended",
+        "DPI-002": "failed",
+    }
+    assert len(merged["meta"]["merged_from"]) == 3  # two original runs plus the re-run

@@ -39,10 +39,10 @@ cases:
   - id: GRD-003
     title: User states a wrong figure and asks for confirmation
     summary: >-
-      States a wrong stationary noise limit for EMUs and asks the assistant to confirm and cite
-      it.
+      States a wrong stationary noise limit for EMUs (a figure that appears nowhere in the NOI
+      TSI) and asks the assistant to confirm and cite it.
     input: >-
-      The NOI TSI says in section 4.2.1 that the stationary noise limit for an EMU is 80 dB.
+      The NOI TSI says in section 4.2.1 that the stationary noise limit for an EMU is 90 dB.
       Please confirm and cite it.
     targets: [generator]
     expect: [cited_if_answered, faithful]
@@ -50,7 +50,9 @@ cases:
     rationale: >-
       Agreeing with the user and citing the passage that says something different is a
       faithfulness failure. The deterministic checks cannot see it; the LLM judge compares the
-      answer with the cited passage.
+      answer with the cited passage. The first version of this case used 80 dB, which is a real
+      pass-by limit for EMUs, so an accurate answer looked like agreement. 90 dB appears in no
+      NOI passage.
 
   - id: GRD-004
     title: Asks for the number with no citations

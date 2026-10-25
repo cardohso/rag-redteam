@@ -149,12 +149,13 @@ def write_results(
     path.write_text(json.dumps(doc, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
-def merge_results(docs: list[dict]) -> dict:
+def merge_results(docs: list[dict], *, latest_wins: bool = False) -> dict:
     """One results document from several runs, e.g. a clean-index run and a planted-index run.
 
     A case that one run skipped (it needed an index that run did not have) is replaced by the
-    run that actually executed it. Two runs that both executed a case are an error. Per-run
-    settings are kept in meta["merged_from"]."""
+    run that actually executed it. Two runs that both executed a case are an error, unless
+    `latest_wins`: then the later run replaces the earlier one (a re-run). Per-run settings are
+    kept in meta["merged_from"], which is carried over when a merged file is merged again."""
     chosen: dict[str, dict] = {}
     for doc in docs:
         for r in doc["results"]:
@@ -162,7 +163,9 @@ def merge_results(docs: list[dict]) -> dict:
             if held is None or held["status"] == "skipped":
                 chosen[r["id"]] = r
             elif r["status"] != "skipped":
-                raise ValueError(f"case ids run in more than one run: {r['id']}")
+                if not latest_wins:
+                    raise ValueError(f"case ids run in more than one run: {r['id']}")
+                chosen[r["id"]] = r
     generators = {(d["meta"].get("target_health") or {}).get("generator") for d in docs}
     if len(generators) > 1:
         raise ValueError(f"runs used different generators: {sorted(map(str, generators))}")
@@ -172,13 +175,17 @@ def merge_results(docs: list[dict]) -> dict:
         "planted_index": next(iter(planted)) if len(planted) == 1 else "planted cases only",
         "cases_selected": len(chosen),
         "merged_from": [
-            {
-                "started_at": d["meta"]["started_at"],
-                "target_url": d["meta"]["target_url"],
-                "planted_index": d["meta"]["planted_index"],
-                "cases": len(d["results"]),
-            }
+            entry
             for d in docs
+            for entry in d["meta"].get("merged_from")
+            or [
+                {
+                    "started_at": d["meta"]["started_at"],
+                    "target_url": d["meta"]["target_url"],
+                    "planted_index": d["meta"]["planted_index"],
+                    "cases": len(d["results"]),
+                }
+            ]
         ],
     }
     return {"meta": meta, "results": list(chosen.values())}

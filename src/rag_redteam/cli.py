@@ -83,6 +83,11 @@ def build_parser() -> argparse.ArgumentParser:
     merge = sub.add_parser("merge", help="combine results files from several runs into one")
     merge.add_argument("results", type=Path, nargs="+")
     merge.add_argument("--out", type=Path, required=True)
+    merge.add_argument(
+        "--latest-wins",
+        action="store_true",
+        help="a case in a later file replaces the same case in an earlier one (a re-run)",
+    )
     return ap
 
 
@@ -117,7 +122,7 @@ def plant_main(args: argparse.Namespace) -> int:
 
 def merge_main(args: argparse.Namespace) -> int:
     docs = [json.loads(p.read_text(encoding="utf-8")) for p in args.results]
-    merged = merge_results(docs)
+    merged = merge_results(docs, latest_wins=args.latest_wins)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(merged, indent=2, ensure_ascii=False), encoding="utf-8")
     print(f"{len(merged['results'])} results -> {args.out}", file=sys.stderr)

@@ -8,3 +8,4 @@ __pycache__/
 # Responsible disclosure: exact high-severity payloads and raw run output stay local.
 attacks/private/
 results/raw/
+.cache/

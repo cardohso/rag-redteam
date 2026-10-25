@@ -1,8 +1,13 @@
-"""Command line: uv run python -m rag_redteam run --url http://localhost:7860"""
+"""Command line.
+
+uv run python -m rag_redteam run --url http://localhost:7860
+uv run python -m rag_redteam judge results/raw/run-<timestamp>.json
+"""
 
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 from datetime import UTC, datetime
@@ -10,7 +15,10 @@ from pathlib import Path
 
 from rag_redteam.client import TargetClient, is_local
 from rag_redteam.corpus import load_corpus
-from rag_redteam.profile import DEFAULT_PROFILE, load_profile, read_env_file
+from rag_redteam.judges.family import SameFamilyError
+from rag_redteam.judges.llm import DEFAULT_JUDGE_MODEL, GroqJudge, JudgeCache
+from rag_redteam.judging import judge_results
+from rag_redteam.profile import DEFAULT_PROFILE, REPO_ROOT, load_profile, read_env_file
 from rag_redteam.runner import CaseResult, run_suite, select, write_results
 from rag_redteam.schema import Category, Severity
 
@@ -43,6 +51,18 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help=f"allow a non-local target (capped at {LIVE_CASE_CAP} cases)",
     )
+    judge = sub.add_parser("judge", help="run the LLM judge on a results file's deferred checks")
+    judge.add_argument("results", type=Path)
+    judge.add_argument("--out", type=Path, help="default: <results>.judged.json")
+    judge.add_argument("--model", default=os.environ.get("JUDGE_MODEL", DEFAULT_JUDGE_MODEL))
+    judge.add_argument("--rpm", type=float, default=20.0, help="judge requests per minute")
+    judge.add_argument("--cache", type=Path, default=REPO_ROOT / ".cache" / "judge.json")
+    judge.add_argument("--rejudge", action="store_true", help="redo earlier LLM verdicts too")
+    judge.add_argument(
+        "--allow-same-family",
+        action="store_true",
+        help="let a judge from the generator's model family grade it (recorded in the results)",
+    )
     return ap
 
 
@@ -52,7 +72,46 @@ def _progress(i: int, total: int, r: CaseResult) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    return judge_main(args) if args.command == "judge" else run_main(args)
 
+
+def _groq_key() -> str:
+    if key := os.environ.get("GROQ_API_KEY"):
+        return key
+    env = REPO_ROOT / ".env"
+    return read_env_file(env, ["GROQ_API_KEY"]).get("GROQ_API_KEY", "") if env.exists() else ""
+
+
+def judge_main(args: argparse.Namespace) -> int:
+    doc = json.loads(args.results.read_text(encoding="utf-8"))
+    key = _groq_key()
+    if not key:
+        print("no GROQ_API_KEY in the environment or .env", file=sys.stderr)
+        return 2
+    judge = GroqJudge(key, args.model, rpm=args.rpm)
+    try:
+        judge_results(
+            doc, load_corpus(), judge,
+            cache=JudgeCache(args.cache), allow_same_family=args.allow_same_family,
+            rejudge=args.rejudge, progress=lambda i, s: print(f"{i:<9} {s}", file=sys.stderr),
+        )  # fmt: skip
+    except SameFamilyError as exc:
+        print(f"refusing to judge: {exc}", file=sys.stderr)
+        return 2
+    finally:
+        judge.close()
+    out = args.out or args.results.with_suffix(".judged.json")
+    out.write_text(json.dumps(doc, indent=2, ensure_ascii=False), encoding="utf-8")
+    meta = doc["meta"]["llm_judge"]
+    print(
+        f"{meta['verdicts']} LLM verdicts by {meta['judge']} "
+        f"(cache {meta['cache_hits']} hits) -> {out}",
+        file=sys.stderr,
+    )
+    return 0
+
+
+def run_main(args: argparse.Namespace) -> int:
     if not is_local(args.url):
         if not args.allow_live:
             print(

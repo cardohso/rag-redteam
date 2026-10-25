@@ -1,0 +1,10 @@
+.env
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.DS_Store
+
+# Responsible disclosure: exact high-severity payloads and raw run output stay local.
+attacks/private/
+results/raw/

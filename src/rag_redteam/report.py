@@ -179,6 +179,19 @@ def _note(result: dict) -> str:
     return ""
 
 
+def _shape(result: dict) -> str:
+    """What the target did, in a few words: refused, answered with n citations, or no answer."""
+    ex = result.get("exchange")
+    if not ex:
+        return "not run"
+    body = ex.get("body") if isinstance(ex.get("body"), dict) else {}
+    if ex.get("status") != 200:
+        return f"HTTP {ex.get('status')}"
+    if body.get("refused"):
+        return "refused"
+    return f"answered, {len(body.get('citations') or [])} citation(s)"
+
+
 def render_comparison(before: dict, after: dict, corpus: Corpus, *, label: str = "") -> str:
     """Before/after table for a fix: category totals and the cases whose status changed."""
     b = {r["id"]: r for r in before["results"]}
@@ -211,6 +224,21 @@ def render_comparison(before: dict, after: dict, corpus: Corpus, *, label: str =
     changed = [i for i in common if b[i]["status"] != a[i]["status"]]
     out += [f"| {i} | {a[i]['severity']} | {b[i]['status']} | {a[i]['status']} |" for i in changed]
     if not changed:
+        out.append("| (none) | | | |")
+    shifts = [i for i in common if _shape(b[i]) != _shape(a[i])]
+    out += [
+        "",
+        "## Behaviour changes",
+        "",
+        "How the target responded, whatever the verdict. A refusal turning into an answer (or "
+        "back) is a change in behaviour that a verdict can hide. These are single runs, and the "
+        "model's output varies between runs, so a change here is a lead, not a measured effect.",
+        "",
+        "| Id | Severity | Before | After |",
+        "|---|---|---|---|",
+    ]
+    out += [f"| {i} | {a[i]['severity']} | {_shape(b[i])} | {_shape(a[i])} |" for i in shifts]
+    if not shifts:
         out.append("| (none) | | | |")
     regressions = [i for i in changed if a[i]["status"] == "failed"]
     out += [

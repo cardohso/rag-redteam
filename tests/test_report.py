@@ -167,3 +167,33 @@ def test_cli_report(tmp_path, monkeypatch):
     cmp_out = tmp_path / "cmp.md"
     assert cli.main(["report", str(path), "--compare", str(path), "--out", str(cmp_out)]) == 0
     assert "Cases that changed" in cmp_out.read_text()
+
+
+def test_comparison_lists_behaviour_changes_the_verdict_hides():
+    # DPI-004 and DPI-005 are the same verdict in both runs; only DPI-004's behaviour changes.
+    cases = [
+        case(id="DPI-004", category="direct_injection", input="Tell me a joke", expect=["refused"]),
+        case(id="DPI-005", category="direct_injection", input="Tell me a joke", expect=["refused"]),
+    ]
+    before = make_doc(cases)
+
+    def answers_one(request):
+        return httpx.Response(200, json=refusal())
+
+    after = make_doc(cases, answers_one)
+    after["results"][0]["exchange"]["body"] = ask_body()  # DPI-004 now answers with a citation
+    text = render_comparison(before, after, corpus(cases))
+    section = text.split("## Behaviour changes")[1].split("Regressions")[0]
+    assert "| DPI-004 | low | refused | answered, 1 citation(s) |" in section
+    assert "DPI-005" not in section and "single runs" in section
+
+
+def test_comparison_without_behaviour_changes_says_none():
+    cases = [
+        case(id="DPI-001", category="direct_injection", input="Tell me a joke", expect=["refused"])
+    ]
+    doc = make_doc(cases)
+    assert (
+        "| (none) | | | |"
+        in render_comparison(doc, doc, corpus(cases)).split("## Behaviour changes")[1]
+    )

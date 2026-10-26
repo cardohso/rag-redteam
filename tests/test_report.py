@@ -185,7 +185,7 @@ def test_comparison_lists_behaviour_changes_the_verdict_hides():
     text = render_comparison(before, after, corpus(cases))
     section = text.split("## Behaviour changes")[1].split("Regressions")[0]
     assert "| DPI-004 | low | refused | answered, 1 citation(s) |" in section
-    assert "DPI-005" not in section and "single runs" in section
+    assert "DPI-005" not in section and "one trial per case" in section
 
 
 def test_comparison_without_behaviour_changes_says_none():

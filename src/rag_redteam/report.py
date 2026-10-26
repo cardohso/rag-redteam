@@ -296,8 +296,9 @@ def render_comparison(before: dict, after: dict, corpus: Corpus, *, label: str =
         "## Behaviour changes",
         "",
         "How the target responded, whatever the verdict. A refusal turning into an answer (or "
-        "back) is a change in behaviour that a verdict can hide. These are single runs, and the "
-        "model's output varies between runs, so a change here is a lead, not a measured effect.",
+        "back) is a change in behaviour that a verdict can hide. Each side shows one "
+        "trial per case (the first failure if there was one), and the model's output varies "
+        "between trials, so a change here is a lead, not a measured effect.",
         "",
         "| Id | Severity | Before | After |",
         "|---|---|---|---|",

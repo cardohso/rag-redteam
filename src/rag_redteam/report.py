@@ -152,6 +152,13 @@ def _meta_lines(doc: dict, results: list[dict]) -> list[str]:
             f"- Latency per request: median {statistics.median(latencies):.0f} ms, "
             f"max {max(latencies):.0f} ms"
         )
+    merged = meta.get("merged_from") or []
+    if len(merged) > 1:
+        days = sorted({m["started_at"][:10] for m in merged})
+        lines.append(
+            f"- Merged from {len(merged)} runs on {', '.join(days)} (some cases were re-run "
+            "after their test was fixed; the latest run of each case is shown)"
+        )
     if (meta.get("repeat") or 1) > 1:
         lines.append(f"- Each case was run {meta['repeat']} times; rates are over those trials")
     skipped = sum(r["status"] == "skipped" for r in results)

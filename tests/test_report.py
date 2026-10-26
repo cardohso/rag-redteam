@@ -197,3 +197,14 @@ def test_comparison_without_behaviour_changes_says_none():
         "| (none) | | | |"
         in render_comparison(doc, doc, corpus(cases)).split("## Behaviour changes")[1]
     )
+
+
+def test_merged_runs_are_named_in_the_report():
+    doc = make_doc()
+    doc["meta"]["merged_from"] = [
+        {"started_at": "2026-10-25T20:00:00+00:00"},
+        {"started_at": "2026-10-26T08:00:00+00:00"},
+    ]
+    text = render(doc, corpus())
+    assert "Merged from 2 runs on 2026-10-25, 2026-10-26" in text
+    assert "Merged from" not in render(make_doc(), corpus())

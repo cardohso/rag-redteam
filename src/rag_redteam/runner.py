@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import platform
+from collections import Counter
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
@@ -27,6 +28,16 @@ class Status(StrEnum):
 
 
 @dataclass
+class Trial:
+    """One run of a case when the suite is run with --repeat."""
+
+    status: Status
+    setup: list[Exchange] = field(default_factory=list)
+    exchange: Exchange | None = None
+    verdicts: list[Verdict] = field(default_factory=list)
+
+
+@dataclass
 class CaseResult:
     id: str
     category: str
@@ -39,6 +50,10 @@ class CaseResult:
     setup: list[Exchange] = field(default_factory=list)
     exchange: Exchange | None = None
     verdicts: list[Verdict] = field(default_factory=list)
+    # With --repeat N: one Trial per run, and the counts. `exchange` and `verdicts` above then
+    # hold the most telling trial (a failure if there is one), so single-run readers still work.
+    trials: list[Trial] = field(default_factory=list)
+    rates: dict | None = None
 
 
 def case_status(verdicts: list[Verdict]) -> Status:
@@ -48,6 +63,67 @@ def case_status(verdicts: list[Verdict]) -> Status:
     if Outcome.INCONCLUSIVE in outcomes:
         return Status.INCONCLUSIVE
     return Status.DEFENDED
+
+
+def trial_rates(statuses: list[str]) -> tuple[str, dict]:
+    """Case status and counts from the statuses of its trials. One failure makes the case
+    failed (it got through at least once); otherwise one inconclusive trial leaves it
+    inconclusive; only all-defended is defended."""
+    counts = Counter(str(x) for x in statuses)
+    rates = {
+        "trials": len(statuses),
+        "defended": counts[Status.DEFENDED],
+        "failed": counts[Status.FAILED],
+        "inconclusive": counts[Status.INCONCLUSIVE],
+    }
+    if rates["failed"]:
+        return Status.FAILED.value, rates
+    if rates["inconclusive"]:
+        return Status.INCONCLUSIVE.value, rates
+    return Status.DEFENDED.value, rates
+
+
+def representative_index(statuses: list[str]) -> int:
+    """The trial to show for a repeated case: the first failure, else the first inconclusive."""
+    for wanted in (Status.FAILED, Status.INCONCLUSIVE):
+        for i, status in enumerate(statuses):
+            if str(status) == wanted:
+                return i
+    return 0
+
+
+def finalize_trials(result: dict) -> None:
+    """Recompute a results-file entry from its trials (after the LLM judge changed them)."""
+    trials = result.get("trials") or []
+    if not trials:
+        return
+    statuses = [t["status"] for t in trials]
+    status, rates = trial_rates(statuses)
+    rep = trials[representative_index(statuses)]
+    result.update(
+        status=status, rates=rates, setup=rep["setup"], exchange=rep["exchange"],
+        verdicts=rep["verdicts"],
+    )  # fmt: skip
+
+
+def run_case_repeated(
+    case: AttackCase,
+    client: TargetClient,
+    profile: TargetProfile,
+    known_secrets: dict[str, str] | None = None,
+    repeat: int = 1,
+) -> CaseResult:
+    runs = [run_case(case, client, profile, known_secrets) for _ in range(repeat)]
+    if repeat == 1:
+        return runs[0]
+    statuses = [r.status for r in runs]
+    status, rates = trial_rates(statuses)
+    rep = runs[representative_index(statuses)]
+    return CaseResult(
+        rep.id, rep.category, rep.severity, rep.title, rep.private, Status(status),
+        input=rep.input, setup=rep.setup, exchange=rep.exchange, verdicts=rep.verdicts,
+        trials=[Trial(r.status, r.setup, r.exchange, r.verdicts) for r in runs], rates=rates,
+    )  # fmt: skip
 
 
 def run_case(
@@ -105,6 +181,7 @@ def run_suite(
     planted_index: bool = False,
     known_secrets: dict[str, str] | None = None,
     progress: Callable[[int, int, CaseResult], None] | None = None,
+    repeat: int = 1,
 ) -> list[CaseResult]:
     results = []
     for i, case in enumerate(cases, start=1):
@@ -115,7 +192,7 @@ def run_suite(
                 Status.SKIPPED, input=case.input, skipped_reason=reason,
             )  # fmt: skip
         else:
-            result = run_case(case, client, profile, known_secrets)
+            result = run_case_repeated(case, client, profile, known_secrets, repeat)
         results.append(result)
         if progress:
             progress(i, len(cases), result)
@@ -130,6 +207,7 @@ def write_results(
     health: dict | None,
     corpus: Corpus,
     planted_index: bool,
+    repeat: int = 1,
 ) -> None:
     """Write the full record of a run. Raw results contain payloads and responses and stay local."""
     doc = {
@@ -142,6 +220,7 @@ def write_results(
             "planted_index": planted_index,
             "private_payloads_loaded": corpus.private_loaded,
             "cases_selected": len(results),
+            "repeat": repeat,
         },
         "results": [asdict(r) for r in results],
     }

@@ -14,7 +14,7 @@ from rag_redteam.corpus import Corpus
 from rag_redteam.judges.base import Outcome, Verdict
 from rag_redteam.judges.family import check_families
 from rag_redteam.judges.llm import JudgeCache, JudgeLLM, judge_check
-from rag_redteam.runner import Status, case_status
+from rag_redteam.runner import Status, case_status, finalize_trials
 from rag_redteam.schema import LLM_CHECKS, Check
 
 LLM_CHECK_NAMES = {c.value for c in LLM_CHECKS}
@@ -50,22 +50,25 @@ def judge_results(
             continue
         if result.get("input"):  # the payload as sent, even if private payloads are not loaded now
             case = case.model_copy(update={"input": result["input"]})
-        exchange = Exchange(**result["exchange"])
         planted = [corpus.planted[p].text for p in case.planted if corpus.planted[p].text]
-        verdicts = []
-        for v in result["verdicts"]:
-            if _pending(v, rejudge):
-                v = asdict(
-                    judge_check(
-                        Check(v["check"]), case, exchange, judge, planted=planted, cache=cache
+        # A repeated case has one trial per run; a single run is its own only unit.
+        for unit in result.get("trials") or [result]:
+            exchange = Exchange(**unit["exchange"])
+            verdicts = []
+            for v in unit["verdicts"]:
+                if _pending(v, rejudge):
+                    v = asdict(
+                        judge_check(
+                            Check(v["check"]), case, exchange, judge, planted=planted, cache=cache
+                        )
                     )
-                )
-                judged += 1
-            verdicts.append(v)
-        result["verdicts"] = verdicts
-        result["status"] = case_status(
-            [Verdict(**{**v, "outcome": Outcome(v["outcome"])}) for v in verdicts]
-        ).value
+                    judged += 1
+                verdicts.append(v)
+            unit["verdicts"] = verdicts
+            unit["status"] = case_status(
+                [Verdict(**{**v, "outcome": Outcome(v["outcome"])}) for v in verdicts]
+            ).value
+        finalize_trials(result)  # no-op for a single run
         if progress:
             progress(result["id"], result["status"])
     doc["meta"]["llm_judge"] = {

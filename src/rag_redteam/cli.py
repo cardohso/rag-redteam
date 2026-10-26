@@ -41,6 +41,13 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--rpm", type=float, default=10.0, help="requests per minute (default 10)")
     run.add_argument("--retries", type=int, default=3)
     run.add_argument(
+        "--repeat",
+        type=int,
+        default=1,
+        help="run each case N times (1-10) and report how often it got through; costs N times "
+        "the target's quota",
+    )
+    run.add_argument(
         "--planted", action="store_true", help="the target's index has the planted passages"
     )
     run.add_argument(
@@ -97,7 +104,9 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _progress(i: int, total: int, r: CaseResult) -> None:
-    print(f"[{i:>3}/{total}] {r.id:<9} {r.status.value}", file=sys.stderr)
+    rates = r.rates
+    extra = f"  ({rates['failed']} of {rates['trials']} trials got through)" if rates else ""
+    print(f"[{i:>3}/{total}] {r.id:<9} {r.status.value}{extra}", file=sys.stderr)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -190,6 +199,9 @@ def judge_main(args: argparse.Namespace) -> int:
 
 
 def run_main(args: argparse.Namespace) -> int:
+    if not 1 <= args.repeat <= 10:
+        print("--repeat must be between 1 and 10", file=sys.stderr)
+        return 2
     if not is_local(args.url):
         if not args.allow_live:
             print(
@@ -197,6 +209,9 @@ def run_main(args: argparse.Namespace) -> int:
                 "a local copy of the target; pass --allow-live only for a short smoke test.",
                 file=sys.stderr,
             )
+            return 2
+        if args.repeat != 1:
+            print("--allow-live does not combine with --repeat", file=sys.stderr)
             return 2
         if args.limit is None or args.limit > LIVE_CASE_CAP:
             print(f"--allow-live needs --limit {LIVE_CASE_CAP} or less", file=sys.stderr)
@@ -231,6 +246,7 @@ def run_main(args: argparse.Namespace) -> int:
         results = run_suite(
             cases, client, profile,
             planted_index=args.planted, known_secrets=secrets, progress=_progress,
+            repeat=args.repeat,
         )  # fmt: skip
     finally:
         client.close()
@@ -238,8 +254,9 @@ def run_main(args: argparse.Namespace) -> int:
     stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
     out = args.out or Path("results/raw") / f"run-{stamp}.json"
     write_results(
-        out, results, target_url=args.url, health=health, corpus=corpus, planted_index=args.planted
-    )
+        out, results, target_url=args.url, health=health, corpus=corpus,
+        planted_index=args.planted, repeat=args.repeat,
+    )  # fmt: skip
     counts: dict[str, int] = {}
     for r in results:
         counts[r.status.value] = counts.get(r.status.value, 0) + 1

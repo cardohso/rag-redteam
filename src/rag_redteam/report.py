@@ -8,6 +8,7 @@ the corpus) and the names of the failed checks are shown instead.
 
 from __future__ import annotations
 
+import math
 import statistics
 from collections import Counter
 
@@ -42,6 +43,22 @@ def _backtick_runs(text: str) -> list[str]:
             runs.append(current)
             current = ""
     return runs + ([current] if current else [])
+
+
+def wilson(k: int, n: int, z: float = 1.96) -> tuple[float, float]:
+    """95% Wilson score interval for k events in n trials. With the few trials a free quota
+    allows it is wide, and that width is the honest part of the number."""
+    p = k / n
+    denom = 1 + z * z / n
+    centre = (p + z * z / (2 * n)) / denom
+    half = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / denom
+    return max(0.0, centre - half), min(1.0, centre + half)
+
+
+def rate_text(rates: dict) -> str:
+    k, n = rates["failed"], rates["trials"]
+    lo, hi = wilson(k, n)
+    return f"{k} of {n} (95% interval {lo:.0%} to {hi:.0%})"
 
 
 def category_counts(results: list[dict]) -> dict[str, Counter]:
@@ -88,6 +105,8 @@ def _failure(result: dict, corpus: Corpus) -> list[str]:
     ]
     if case is not None:
         lines.append(f"- Attack: {_cell(case.summary)}")
+    if result.get("rates"):
+        lines.append(f"- Got through in {rate_text(result['rates'])} trials")
     if redact:
         lines.append("- Payload and answer: " + WITHHELD)
     elif result.get("input"):
@@ -133,6 +152,8 @@ def _meta_lines(doc: dict, results: list[dict]) -> list[str]:
             f"- Latency per request: median {statistics.median(latencies):.0f} ms, "
             f"max {max(latencies):.0f} ms"
         )
+    if (meta.get("repeat") or 1) > 1:
+        lines.append(f"- Each case was run {meta['repeat']} times; rates are over those trials")
     skipped = sum(r["status"] == "skipped" for r in results)
     if skipped:
         lines.append(f"- {skipped} case(s) skipped (private payload missing or planted index off)")
@@ -158,6 +179,27 @@ def render(doc: dict, corpus: Corpus) -> str:
     else:
         out += ["No attack got through in this run.", ""]
 
+    repeated = [r for r in results if r.get("rates")]
+    if repeated:
+        out += [
+            "## Repeated runs",
+            "",
+            "The target's output varies between runs, so these cases were run several times. "
+            "A case is *got through* if any trial failed. The interval is a 95% Wilson interval; "
+            "with so few trials it is wide.",
+            "",
+            "| Id | Severity | Trials | Got through | 95% interval | Defended | Inconclusive |",
+            "|---|---|---:|---:|---|---:|---:|",
+        ]
+        for r in repeated:
+            x = r["rates"]
+            lo, hi = wilson(x["failed"], x["trials"])
+            out.append(
+                f"| {r['id']} | {r['severity']} | {x['trials']} | {x['failed']} "
+                f"| {lo:.0%} to {hi:.0%} | {x['defended']} | {x['inconclusive']} |"
+            )
+        out.append("")
+
     out += ["## Results by category", ""]
     for cat in _ordered(counts):
         out += [f"### {cat}", ""]
@@ -177,6 +219,14 @@ def _note(result: dict) -> str:
         why = [v for v in result["verdicts"] if v["outcome"] == "inconclusive"]
         return _cell(why[0]["check"] + (": " + why[0]["reason"] if not _redacted(result) else ""))
     return ""
+
+
+def _rate_cell(result: dict) -> str:
+    rates = result.get("rates")
+    if not rates:
+        return "single run: " + result["status"]
+    lo, hi = wilson(rates["failed"], rates["trials"])
+    return f"{rates['failed']}/{rates['trials']} ({lo:.0%} to {hi:.0%})"
 
 
 def _shape(result: dict) -> str:
@@ -225,6 +275,21 @@ def render_comparison(before: dict, after: dict, corpus: Corpus, *, label: str =
     out += [f"| {i} | {a[i]['severity']} | {b[i]['status']} | {a[i]['status']} |" for i in changed]
     if not changed:
         out.append("| (none) | | | |")
+    rated = [i for i in common if b[i].get("rates") or a[i].get("rates")]
+    if rated:
+        out += [
+            "",
+            "## Failure rate per case (repeated runs)",
+            "",
+            "Trials in which the attack got through. Intervals are 95% Wilson intervals; with so "
+            "few trials they overlap, so read these as a pattern, not a proof.",
+            "",
+            "| Id | Severity | Before | After |",
+            "|---|---|---|---|",
+        ]
+        out += [
+            f"| {i} | {a[i]['severity']} | {_rate_cell(b[i])} | {_rate_cell(a[i])} |" for i in rated
+        ]
     shifts = [i for i in common if _shape(b[i]) != _shape(a[i])]
     out += [
         "",

@@ -18,6 +18,7 @@ class Category(StrEnum):
     JAILBREAK = "jailbreak"
     DATA_LEAKAGE = "data_leakage"
     GROUNDING = "grounding"
+    CONTROLS = "controls"  # normal questions that must be answered: they measure over-refusal
 
 
 ID_PREFIX = {
@@ -26,6 +27,7 @@ ID_PREFIX = {
     Category.JAILBREAK: "JB",
     Category.DATA_LEAKAGE: "LEAK",
     Category.GROUNDING: "GRD",
+    Category.CONTROLS: "CTL",
 }
 
 
@@ -61,6 +63,8 @@ class Check(StrEnum):
     NO_STACK_TRACE = "no_stack_trace"  # no traceback, file path or exception name
     STATUS = "status"  # status code is in `expect_status`
     MAX_CITATIONS = "max_citations"  # at most `max_citations` citations
+    ANSWERED = "answered"  # the target answered instead of refusing (for controls)
+    CITES_EXPECTED_DOC = "cites_expected_doc"  # a citation comes from one of `expect_docs`
     # LLM judge: needs reading comprehension; the judge must give a reason.
     FAITHFUL = "faithful"  # every claim is supported by the cited passages
     NO_INJECTED_INSTRUCTION = "no_injected_instruction"  # did not act on a planted instruction
@@ -102,6 +106,7 @@ class AttackCase(BaseModel):
     forbidden: list[str] = []  # case-insensitive substrings for NO_FORBIDDEN
     expect_status: list[int] = [200]
     max_citations: int | None = None
+    expect_docs: list[str] = []  # document ids for CITES_EXPECTED_DOC, e.g. tsi-noi
     severity: Severity
     rationale: str
 
@@ -120,6 +125,8 @@ class AttackCase(BaseModel):
             raise ValueError(f"{self.id}: input must be {MIN_QUESTION}-{MAX_QUESTION} chars")
         if Check.NO_FORBIDDEN in self.expect and not self.forbidden:
             raise ValueError(f"{self.id}: no_forbidden needs a `forbidden` list")
+        if Check.CITES_EXPECTED_DOC in self.expect and not self.expect_docs:
+            raise ValueError(f"{self.id}: cites_expected_doc needs an `expect_docs` list")
         if Check.MAX_CITATIONS in self.expect and self.max_citations is None:
             raise ValueError(f"{self.id}: max_citations check needs `max_citations`")
         return self

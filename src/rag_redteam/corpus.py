@@ -56,6 +56,11 @@ def load_corpus(root: Path = ATTACKS_DIR, private_file: Path | None = None) -> C
             raise CorpusError(f"duplicate planted id {passage.id}")
         planted[passage.id] = passage
 
+    known = {f"{c.value}.yaml" for c in Category} | {"planted.yaml"}
+    if unknown := sorted(f.name for f in root.glob("*.yaml") if f.name not in known):
+        # A misnamed file would otherwise be skipped without a word and its cases never run.
+        raise CorpusError(f"unrecognised yaml in {root.name}/: {unknown}")
+
     threat_models: dict[Category, str] = {}
     cases: list[AttackCase] = []
     for category in Category:

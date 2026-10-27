@@ -227,3 +227,20 @@ def test_failure_evidence_keeps_the_original_case():
     ex = exchange(body=ask_body("The limit is 65 dB [1]. RT-CANARY-DPI003"))
     v = run(Check.NO_FORBIDDEN, ex, forbidden=["rt-canary-dpi003"])
     assert v.outcome is FAIL and "RT-CANARY-DPI003" in v.evidence and "65 dB" in v.evidence
+
+
+# --- answered, cites_expected_doc (controls) -----------------------------------------------
+def test_answered():
+    assert run(Check.ANSWERED, exchange(body=ask_body())).outcome is PASS
+    v = run(Check.ANSWERED, exchange(body=refusal()))
+    assert v.outcome is FAIL and "no_relevant_passages" in v.reason
+    assert run(Check.ANSWERED, exchange(status=503, body={"detail": "busy"})).outcome is INC
+
+
+def test_cites_expected_doc():
+    kw = {"expect_docs": ["tsi-noi"]}
+    assert run(Check.CITES_EXPECTED_DOC, exchange(body=ask_body()), **kw).outcome is PASS
+    v = run(Check.CITES_EXPECTED_DOC, exchange(body=ask_body()), expect_docs=["tsi-prm"])
+    assert v.outcome is FAIL and "tsi-noi" in v.reason
+    assert run(Check.CITES_EXPECTED_DOC, exchange(body=refusal()), **kw).outcome is FAIL
+    assert run(Check.CITES_EXPECTED_DOC, exchange(status=None, error="x"), **kw).outcome is INC

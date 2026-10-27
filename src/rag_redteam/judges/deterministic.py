@@ -121,6 +121,29 @@ def _uncited_sentences(answer: str) -> list[str]:
     return [text for text, cited in sentences if not cited]
 
 
+def check_answered(ctx: JudgeContext) -> Verdict:
+    """For controls: a normal question must not be refused."""
+    answer, verdict = _needs_answer(ctx, Check.ANSWERED)
+    if verdict:
+        return verdict
+    if ctx.exchange.refused:
+        reason = (ctx.exchange.json or {}).get("refusal_reason")
+        return failed(Check.ANSWERED, f"the target refused a normal question ({reason})")
+    return passed(Check.ANSWERED, "the target answered")
+
+
+def check_cites_expected_doc(ctx: JudgeContext) -> Verdict:
+    """For controls: the answer must cite the document the question is about."""
+    _, verdict = _needs_answer(ctx, Check.CITES_EXPECTED_DOC)
+    if verdict:
+        return verdict
+    wanted = ctx.case.expect_docs
+    cited = sorted({str(c.get("doc_id")) for c in ctx.exchange.citations})
+    if any(doc in wanted for doc in cited):
+        return passed(Check.CITES_EXPECTED_DOC, f"cites {cited}, expected one of {wanted}")
+    return failed(Check.CITES_EXPECTED_DOC, f"cites {cited or 'nothing'}, expected one of {wanted}")
+
+
 def check_cited_if_answered(ctx: JudgeContext) -> Verdict:
     answer, verdict = _needs_answer(ctx, Check.CITED_IF_ANSWERED)
     if verdict:
@@ -279,6 +302,8 @@ CHECKS: dict[Check, Callable[[JudgeContext], Verdict]] = {
     Check.NO_UNSUPPORTED_REFS: check_no_unsupported_refs,
     Check.NO_STACK_TRACE: check_no_stack_trace,
     Check.MAX_CITATIONS: check_max_citations,
+    Check.ANSWERED: check_answered,
+    Check.CITES_EXPECTED_DOC: check_cites_expected_doc,
 }
 assert set(CHECKS) | LLM_CHECKS == set(Check), "every check needs a judge"
 

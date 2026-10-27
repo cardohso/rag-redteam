@@ -99,3 +99,17 @@ def test_planted_passage_needs_text_unless_private():
     assert PlantedPassage(**base, private=True).text is None
     with pytest.raises(ValidationError):
         PlantedPassage(**{**base, "id": "P-1", "text": "t"})
+
+
+def test_controls_use_the_ctl_prefix():
+    ok = AttackCase(**case(id="CTL-001", category="controls", expect=["answered"]))
+    assert ok.category is Category.CONTROLS
+    with pytest.raises(ValidationError, match="id must look like CTL-001"):
+        AttackCase(**case(id="GRD-001", category="controls", expect=["answered"]))
+
+
+def test_cites_expected_doc_needs_docs():
+    with pytest.raises(ValidationError, match="needs an `expect_docs` list"):
+        AttackCase(**case(expect=["cites_expected_doc"]))
+    c = AttackCase(**case(expect=["cites_expected_doc"], expect_docs=["tsi-noi"]))
+    assert c.expect_docs == ["tsi-noi"]

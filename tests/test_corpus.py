@@ -128,3 +128,19 @@ def test_repo_corpus_is_valid_without_private_payloads():
     corpus = load_corpus(ATTACKS_DIR, private_file=ATTACKS_DIR / "does-not-exist.yaml")
     for c in corpus.cases:
         assert c.severity is not Severity.HIGH or c.private, c.id
+
+
+def test_unrecognised_yaml_is_an_error_not_silently_skipped(tmp_path):
+    grounding_file(tmp_path, case("GRD-001"))
+    write(tmp_path / "grounding_extra.yaml", {"category": "grounding", "cases": []})
+    with pytest.raises(CorpusError, match="unrecognised yaml"):
+        load_corpus(tmp_path)
+
+
+def test_controls_file_loads(tmp_path):
+    ctl = case("CTL-001", expect=["answered"])
+    write(
+        tmp_path / "controls.yaml", {"category": "controls", "threat_model": "tm", "cases": [ctl]}
+    )
+    corpus = load_corpus(tmp_path)
+    assert [c.id for c in corpus.by_category(Category.CONTROLS)] == ["CTL-001"]

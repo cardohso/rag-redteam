@@ -47,6 +47,14 @@ FIXES: dict[str, str] = {
     ),
     Check.STATUS: "Return a stable, validated error status for malformed requests.",
     Check.MAX_CITATIONS: "Cap the number of citations returned per answer.",
+    Check.ANSWERED: (
+        "A normal question was refused: look at which gate refused it (score floor, grader, "
+        "insufficient flag, citation gate) and loosen that one, or the last change that touched it."
+    ),
+    Check.CITES_EXPECTED_DOC: (
+        "The answer did not cite the document the question is about: check retrieval and the "
+        "grader for that question."
+    ),
     Check.FAITHFUL: (
         "Add a grounding check that verifies each claim against its cited passage and refuses "
         "unsupported answers."

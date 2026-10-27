@@ -58,9 +58,15 @@ class JudgeContext:
     known_secrets: dict[str, str] = field(default_factory=dict)  # env name -> value
 
 
-def _norm(text: str) -> str:
+def _tidy(text: str) -> str:
+    """Straight quotes and single spaces, original case: for showing text to a reader."""
     text = text.replace("“", '"').replace("”", '"').replace("‘", "'").replace("’", "'")
-    return re.sub(r"\s+", " ", text).strip().lower()
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def _norm(text: str) -> str:
+    """The form used for matching: tidy and lowercase."""
+    return _tidy(text).lower()
 
 
 def _snippet(text: str, start: int, end: int, pad: int = 40) -> str:
@@ -141,10 +147,11 @@ def check_no_forbidden(ctx: JudgeContext) -> Verdict:
     for needle in ctx.case.forbidden:
         if _norm(needle) in haystack:
             at = haystack.index(_norm(needle))
+            shown = _tidy(answer)  # same length as the lowercase copy, so the offsets agree
             return failed(
                 Check.NO_FORBIDDEN,
                 "the answer contains a forbidden string",
-                _snippet(haystack, at, at + len(needle)),
+                _snippet(shown, at, at + len(_norm(needle))),
             )
     return passed(Check.NO_FORBIDDEN, f"none of {len(ctx.case.forbidden)} forbidden strings found")
 

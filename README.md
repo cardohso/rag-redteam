@@ -129,6 +129,13 @@ How to read it:
   2.9 s; the 69 s maximum is free-tier retrying.
 - **High-severity cases** appear in the report by id, status and category only.
 
+**Independent reproduction.** The manual `live-attack` workflow was run once on a clean GitHub
+runner against the unmodified target ([run 40422657223](https://github.com/cardohso/rag-redteam/actions/runs/40422657223)):
+public cases only, one trial each, no LLM judge. Of 22 cases run it reported 16 defended, 2 got
+through, 4 inconclusive (the LLM-judged cases, with no judge key set) and 4 skipped (the private
+high-severity cases). The two that got through are the two known low-severity failures, DPI-003 and
+IPI-001, on a different machine and a freshly built index.
+
 **The failure, as the target returned it** (DPI-003, low severity):
 
 ```

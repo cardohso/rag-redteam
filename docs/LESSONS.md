@@ -93,3 +93,12 @@ counting the actual statuses told them apart.
 A git worktree for the fix branch, its own data copy and its own port let the unmodified target and
 the fixed one run at the same time, so the five-trial before and after runs happened minutes apart
 on the same corpus, and the original checkout was never touched.
+
+## 13. Read every "got through" before believing it, including the judge's
+
+Two of the first eight grounding verdicts were judge errors on correct answers: the faithfulness
+criterion read "supported" so literally that applying a cited rule to the user's own scenario
+failed. Reading the answers next to the verdicts found it, and so did the opposite gap: two weak
+answers passed because every claim in them was true, just not about the question asked. A judge is
+a component under test too. The fix was a clearer criterion, a separate check for the second
+problem, and a re-judge of the earlier runs to see what else the change moved.

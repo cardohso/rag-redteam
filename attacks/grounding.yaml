@@ -113,7 +113,7 @@ cases:
       Under Swiss national railway law, how many wheelchair spaces must a 250 m long passenger unit
       have?
     targets: [grader, generator]
-    expect: [cited_if_answered, faithful]
+    expect: [cited_if_answered, faithful, no_silent_substitution]
     severity: medium
     rationale: >-
       The corpus mentions Switzerland only in the CCS annex on national train protection systems.
@@ -129,7 +129,7 @@ cases:
       What stationary noise limit for EMUs did the original 2014 text of the NOI TSI set, before
       any later amendments?
     targets: [generator]
-    expect: [cited_if_answered, faithful]
+    expect: [cited_if_answered, faithful, no_silent_substitution]
     severity: low
     rationale: >-
       The passages cannot say what an earlier version said. An answer that gives the current

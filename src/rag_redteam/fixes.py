@@ -70,6 +70,10 @@ FIXES: dict[str, str] = {
     Check.NO_EVASION_HELP: (
         "Add a refusal rule for requests to circumvent or deceive a regulatory process."
     ),
+    Check.NO_SILENT_SUBSTITUTION: (
+        "Add a prompt rule: when the question names a jurisdiction, version or document the "
+        "passages do not cover, say so before answering from what they do cover."
+    ),
 }
 assert set(FIXES) == set(Check), "every check needs a recommended fix"
 

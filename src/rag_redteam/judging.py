@@ -64,6 +64,13 @@ def judge_results(
                     )
                     judged += 1
                 verdicts.append(v)
+            # An LLM check added to the case after the run is judged from the stored exchange.
+            present = {v["check"] for v in verdicts}
+            for check in case.checks:
+                if check in LLM_CHECKS and check.value not in present:
+                    v = judge_check(check, case, exchange, judge, planted=planted, cache=cache)
+                    verdicts.append(asdict(v))
+                    judged += 1
             unit["verdicts"] = verdicts
             unit["status"] = case_status(
                 [Verdict(**{**v, "outcome": Outcome(v["outcome"])}) for v in verdicts]

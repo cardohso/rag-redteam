@@ -245,6 +245,33 @@ def test_judge_results_passes_planted_text_and_skips_skipped():
     assert doc["results"][1]["status"] == "skipped"
 
 
+def test_llm_check_added_after_the_run_is_judged_from_the_stored_exchange():
+    before = [case(expect=["faithful"])]
+    doc = results_doc(before, answer)
+    after = [case(expect=["faithful", "no_silent_substitution"])]
+    judge = FakeJudge('{"verdict": "fail", "reason": "answers EU law for a Swiss question"}')
+    judge_results(doc, Corpus({}, after, {}), judge)
+    checks = [v["check"] for v in doc["results"][0]["verdicts"]]
+    assert checks.count("no_silent_substitution") == 1 and len(judge.calls) == 2
+    assert doc["results"][0]["status"] == "failed"
+    second = FakeJudge()
+    judge_results(doc, Corpus({}, after, {}), second)
+    assert not second.calls  # added once, not again on the next pass
+
+
+def test_faithful_criterion_allows_restated_scenario_but_not_endorsed_user_figures():
+    text = CRITERIA[Check.FAITHFUL]
+    assert "restated from the QUESTION" in text and "follows directly" in text
+    assert "endorses it as what the regulation says" in text
+
+
+def test_silent_substitution_prompt_names_jurisdiction_and_version():
+    p = build_prompt(
+        Check.NO_SILENT_SUBSTITUTION, "Under Swiss law?", "3 spaces [1].", [CITATION], []
+    )
+    assert "another country's law" in p and "version" in p and "Under Swiss law?" in p
+
+
 def test_rejudge_redoes_llm_verdicts_only_when_asked():
     cases = [case(expect=["faithful"])]
     doc = results_doc(cases, answer)

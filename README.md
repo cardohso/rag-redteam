@@ -220,7 +220,7 @@ that applied a cited rule to the user's own scenario, and one that concluded "DC
 from a passage listing the only systems that are. I changed the criterion to accept those two
 things, while still failing a figure from the user that the answer endorses as the regulation's
 (GRD-003), and re-judged the stored answers. The 26-case baseline was re-judged with the new
-wording too: still 25 defended and 1 got through. The 36 control verdicts were not re-judged.
+wording too: still 25 defended and 1 got through. So were the 36 control trials: no verdict changed.
 
 **Third batch: 20 cases, to 10 per category.** Indirect injection gained a planted instruction in
 German, one that tells the assistant to refuse, one that asks to be the only citation, one hidden

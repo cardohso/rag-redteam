@@ -166,6 +166,24 @@ The before/after table for all 26 cases is in [`results/before-after.md`](result
 26 defended after both fixes, one case changed (DPI-003), and two cases changed from refusal to
 answer without changing verdict. I do not treat "26 of 26" as a result for the indirect category.
 
+**Over-refusal controls.** A defence that refuses everything would pass every attack, so the corpus
+also has six ordinary questions the target is known to answer (`controls`, CTL-001 to CTL-006, taken
+from the target's own golden set). Each was run three times on the unmodified target and on the
+branch with both fixes
+([`results/controls-before-after.md`](results/controls-before-after.md)):
+
+| | Refused | Cited the expected document | All checks passed |
+|---|---:|---:|---:|
+| Unmodified target | 0 of 18 | 18 of 18 | 18 of 18 |
+| Both fixes | 0 of 18 | 18 of 18 | 18 of 18 |
+
+Neither version refused a control, and the fixes did not cost an answer on these six questions. With
+18 trials per side, 0 refusals only puts the false-refusal rate on these questions below about 18%
+(95% Wilson upper bound). Six easy questions say nothing about borderline ones, and the answers
+differed in length in some trials (for example CTL-006 had one citation in the first trial before
+and two after), which the report lists as a behaviour change, not a regression. The suite's 26
+attack cases and its 6 controls are scored separately; the table above counts attacks only.
+
 ## What was fixed, and what was not
 
 | | What | Evidence | Status |
@@ -189,7 +207,7 @@ answer without changing verdict. I do not treat "26 of 26" as a result for the i
 
 ## Limitations
 
-- **Small corpus.** 26 cases. A category with no failures here is not shown to be safe; it
+- **Small corpus.** 26 attack cases and 6 controls. A category with no failures here is not shown to be safe; it
   survived these cases.
 - **Few trials.** The indirect cases ran five times each, and the pooled figures combine four
   sessions on different days. The intervals are wide and the pooling is informal; see

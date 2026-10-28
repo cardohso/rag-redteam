@@ -1,7 +1,9 @@
 # Proposed rail PR: require a citation on every sentence
 
-**Status: proposal only.** Nothing is pushed to `cardohso/rail-regulation-rag` and no PR is open.
-The change is on a local branch, `redteam/per-sentence-citation-gate` (one commit on top of `main`).
+**Status: merged.** Opened as [PR #2](https://github.com/cardohso/rail-regulation-rag/pull/2) from
+the branch `redteam/per-sentence-citation-gate` (one commit) and squash-merged on 28 October 2026
+after its checks passed, including the golden-set evaluation. The text below is the description
+as proposed.
 
 ## Title
 

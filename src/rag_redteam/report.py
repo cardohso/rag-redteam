@@ -156,8 +156,8 @@ def _meta_lines(doc: dict, results: list[dict]) -> list[str]:
     if len(merged) > 1:
         days = sorted({m["started_at"][:10] for m in merged})
         lines.append(
-            f"- Merged from {len(merged)} runs on {', '.join(days)} (some cases were re-run "
-            "after their test was fixed; the latest run of each case is shown)"
+            f"- Merged from {len(merged)} runs on {', '.join(days)} (for example a clean and a "
+            "planted index, or a re-run; for a case in several runs, the latest is shown)"
         )
     if (meta.get("repeat") or 1) > 1:
         lines.append(f"- Each case was run {meta['repeat']} times; rates are over those trials")

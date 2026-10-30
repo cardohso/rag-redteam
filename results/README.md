@@ -13,6 +13,9 @@ and responses, including the high-severity cases) are not committed: `results/ra
 | `batch3-before-after.md` | The four third-batch cases that got through, re-run once on the branch with both fixes | `report <after> --compare <before>` |
 | `ipi008-repeat.md` | IPI-008, five trials each on the unmodified target and the branch with both fixes | `report <after> --compare <before>` on `--repeat 5` runs |
 | `controls-before-after.md` | The six over-refusal controls, three trials each, same two code versions | `report <after> --compare <before>` on `--category controls --repeat 3` runs |
+| `final-run-all60.md` | All 60 cases once each: the target's current `main` vs `main` plus Fix 2 | `report <after> --compare <before>` on two `merge`d runs |
+| `final-run-indirect-x5.md` | The 10 indirect cases, five trials each, same two code versions | `report <after> --compare <before>` on `--repeat 5 --planted` runs |
+| `final-run-controls-x3.md` | The 10 controls, three trials each, same two code versions | `report <after> --compare <before>` on `--category controls --repeat 3` runs |
 
 High-severity and private cases appear by id, status and category only. Re-running needs the
 steps in the main README, and the four high-severity cases need `attacks/private/payloads.yaml`.

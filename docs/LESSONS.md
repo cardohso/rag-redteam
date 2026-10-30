@@ -102,3 +102,21 @@ failed. Reading the answers next to the verdicts found it, and so did the opposi
 answers passed because every claim in them was true, just not about the question asked. A judge is
 a component under test too. The fix was a clearer criterion, a separate check for the second
 problem, and a re-judge of the earlier runs to see what else the change moved.
+
+## 14. A run that finishes is not a run that worked
+
+The first attempt at the five-trial indirect run exited cleanly and printed a summary. The service
+log for one copy was full of DNS errors from a laptop that had lost its network, and the other
+copy had returned rate-limit 503s. Both look like "inconclusive" in the summary, which is the
+right label, but only the log said why, and reading them as "the attack was resisted" or "the
+quota ran out" would both have been wrong. I looked at the service log and the HTTP status of
+every trial before judging, discarded the run, kept the machine awake and re-ran it. Every trial
+of the rerun returned 200.
+
+## 15. One trial per case flips, so do not explain it
+
+Between the one-trial run and the repeat, IPI-007 went from "failed on `main`, defended with
+Fix 2" to "0 of 5 on `main`, 4 of 5 with Fix 2". CTL-009 and CTL-010 moved the same way. Had I
+stopped after the one-trial run I would have written a story about Fix 2 helping IPI-007. The
+repeat showed that the case depends on what the grader lets through on the day. A single trial
+tells you which cases to repeat, not what the fix does.

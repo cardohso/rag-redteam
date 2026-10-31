@@ -55,7 +55,11 @@ def judge_results(
         for unit in result.get("trials") or [result]:
             exchange = Exchange(**unit["exchange"])
             verdicts = []
+            wanted = {c.value for c in case.checks}
             for v in unit["verdicts"]:
+                # An LLM check the case no longer lists (the spec changed after the run) is dropped.
+                if v["check"] in LLM_CHECK_NAMES and v["check"] not in wanted:
+                    continue
                 if _pending(v, rejudge):
                     v = asdict(
                         judge_check(

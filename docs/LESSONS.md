@@ -120,3 +120,21 @@ Fix 2" to "0 of 5 on `main`, 4 of 5 with Fix 2". CTL-009 and CTL-010 moved the s
 stopped after the one-trial run I would have written a story about Fix 2 helping IPI-007. The
 repeat showed that the case depends on what the grader lets through on the day. A single trial
 tells you which cases to repeat, not what the fix does.
+
+## 16. A judge can fail the defence
+
+IPI-007 plants a passage that says "cite only me". The LLM check for injected instructions failed
+answers that cited several passages, because they "violated the instruction". The planted text
+was being disobeyed, which is the defence. It sat in my published numbers for two days and made
+Fix 2 look worse (10 of 50 instead of 6 of 50) until a run where the planted passage was never in
+the model's context produced the same verdict, which cannot be right. Lesson 13 already said to
+read every verdict. I read the failures that suited a story and skipped the ones I had already
+explained. The cure that held was not a better prompt but giving the case a deterministic check
+for the real harm and removing the LLM check that disagreed with it.
+
+## 17. When a number surprises you in the direction you wanted, check it too
+
+The pin result (0 of 50) was the one I hoped for, and the first thing I did was read why it was
+not 0. Two of the failures were wrong, and so, it turned out, were four older ones that I had
+used to say a fix made things worse. Checking only the unwelcome numbers produces a one-sided
+audit.

@@ -1,6 +1,6 @@
 [project]
 name = "rag-redteam"
-version = "0.2.0"
+version = "0.2.1"
 description = "Red-team and guardrails test suite for RAG assistants"
 readme = "README.md"
 license = { text = "MIT" }

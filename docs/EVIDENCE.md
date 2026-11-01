@@ -179,7 +179,10 @@ unchanged (55 and 56 defended). Corrected day-2 totals: `main` 12 of 50, Fix 2 6
 
 ## Corpus pin: the IPI-008 defence (31 October 2026)
 
-Target branch `redteam/corpus-pin` at `2dea48c` (local, no pull request). A SHA-256 of each
+Target branch `redteam/corpus-pin` at `2dea48c`, merged as [PR #3](https://github.com/cardohso/rail-regulation-rag/pull/3) (`c7c371f`) on 1 November 2026.
+The PR's golden-set run passed: faithfulness 1.00 and context recall 0.98, against 0.94 and 0.95
+in the last run on `main` (PR #2); the other metrics were equal. One run each, so read the gains
+as variation. A SHA-256 of each
 official passage's id, heading and text is shipped in `src/rail_rag/corpus.sha256`; the retrieval
 wrapper drops and logs any hit without a pin. The suite's own runner on the same planted copy as
 the day-2 runs, five trials per case, judged with the corrected criterion:
